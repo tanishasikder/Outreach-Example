@@ -1,0 +1,55 @@
+# Run from the project root:
+#   docker compose -f config/compose.yaml up --build
+# Then open http://localhost:5500
+services:
+  api:
+    build:
+      context: ..          # project root, where the Dockerfile is
+      dockerfile: Dockerfile
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: ../.env      # JWT_SECRET_KEY, GOOGLE_API_KEY, QDRANT_URL, QDRANT_KEY
+    environment:
+      REDIS_URL: redis://redis:6379  # overrides .env: inside Docker, Redis is the "redis" service
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: celery -A src.core.celery_app worker -Q queue_sales,queue_rag --loglevel=info
+    env_file: ../.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+    ports:
+      - "5500:80"  # http://localhost:5500 is the origin CORS allows
+    depends_on:
+      - api
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  redis_data:

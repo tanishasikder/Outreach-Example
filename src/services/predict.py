@@ -1,15 +1,21 @@
 import pandas as pd
 import numpy as np
-from fastapi import Request
 
-def predict_sales(input : dict, model, gem_model, hug_model):
+# Text columns that were turned into 0/1 columns when the model was trained (see src/models/deal_pred.py)
+CATEGORICAL = ['lead_source', 'industry', 'region', 'funding_stage']
+
+def predict_sales(inputs: dict, model, columns: list) -> dict:
     '''
     Used by celery worker to predict user input with
-    the provide (pretrained) model
+    the provided (pretrained) model and its training columns
     '''
-    df = pd.read_json([input]) # Model takes in df. Turn to df
-    answers = model.classes_
+    df = pd.DataFrame([inputs]) # Model takes in df. Turn to df
+    numeric = [c for c in df.columns if c not in CATEGORICAL]
+    df[numeric] = df[numeric].astype(float) # None -> NaN, which the tree handles
+    # Same 0/1 columns as training, in the same order. Missing dummy columns are 0
+    df = pd.get_dummies(df, columns=CATEGORICAL, dtype=int).reindex(columns=columns, fill_value=0)
 
+    answers = model.classes_
     probabilities = model.predict_proba(df)[0]
     sort = np.argsort(probabilities)[::-1] # Sort from greatest -> least
 
@@ -25,7 +31,7 @@ def predict_sales(input : dict, model, gem_model, hug_model):
             float(probabilities[sort[0]] - probabilities[sort[1]]),
             4,
         ),
+        "inputs": inputs, # The RAG step uses these to search for relevant tips
     }
 
     return report
-

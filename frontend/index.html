@@ -46,6 +46,8 @@
   .api { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .85rem; margin: -12px 0 20px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
   .dot.ok { background: var(--won); } .dot.down { background: var(--lost); }
+  .report { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); white-space: pre-wrap; font-size: .95rem; }
+  .report h2 { font-size: 1rem; margin: 0 0 8px; white-space: normal; }
   pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--line);
         border-radius: 8px; padding: 10px; font-size: .8rem; }
 </style>
@@ -60,7 +62,7 @@
     <fieldset>
       <legend>Access</legend>
       <label>Access token (JWT) *
-        <small>Kept in this browser tab only and sent with each request.</small>
+        <small>Kept in this browser tab only. For local testing, make one with <code>python -m src.schemas.jwt</code>.</small>
         <input name="token" id="token" type="password" autocomplete="off" required>
       </label>
     </fieldset>
@@ -155,7 +157,7 @@ const API_BASE   = "http://localhost:8000";
 const HEALTH_URL = `${API_BASE}/health`;
 const UPLOAD_URL = `${API_BASE}/upload`;              // POST multipart form, field "info" = JSON string
 const STATUS_URL = (id) => `${API_BASE}/status/${id}`; // GET, used once /upload returns a Celery task_id
-const POLL_MS = 1000, TIMEOUT_MS = 60000;
+const POLL_MS = 1500, TIMEOUT_MS = 120000; // the AI report can take a while
 const LABELS = ["won", "lost", "open"];
 // -----------------------------------------------------------------------------
 
@@ -193,30 +195,27 @@ async function getJson(url, options) {
   let data = null;
   try { data = await res.json(); } catch (_) {}
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) throw new Error("Not authorised. Check the access token.");
+    if (res.status === 401 || res.status === 403) throw new Error("Not authorised. Check the access token (it may have expired).");
+    if (res.status === 503) throw new Error("The task queue is down. Is Redis running?");
     if (res.status === 429) throw new Error("Too many requests (limit is 3 per minute). Wait a moment and try again.");
     const detail = data && (data.detail || data.error);
     if (Array.isArray(detail)) {
-      throw new Error(detail.map((d) => `${(d.loc || []).slice(1).join(".")}: ${d.msg}`).join("; "));
+      throw new Error(detail.map((d) => `${(d.loc || []).filter((x) => x !== "body").join(".")}: ${d.msg}`).join("; "));
     }
     throw new Error(typeof detail === "string" ? detail : `Server returned ${res.status}`);
   }
   return data;
 }
 
-// verify_jwt(token: str) is used as a dependency, so FastAPI currently reads the token from
-// the ?token= query string. It is also sent as a Bearer header for when the backend switches to that.
-function authParts(token) {
-  return { query: `?token=${encodeURIComponent(token)}`, headers: { Authorization: `Bearer ${token}` } };
-}
+// src/schemas/jwt.py reads the token from the "Authorization: Bearer <token>" header
+const authHeaders = (token) => ({ Authorization: `Bearer ${token}` });
 
-// POST /upload. Handles both a direct answer and a Celery task_id that has to be polled.
-async function predict(body, token) {
-  const auth = authParts(token);
+// POST /upload queues the work and returns a Celery task_id, then /status is polled until it is done.
+async function predict(body, token, onState) {
   const formData = new FormData();
-  formData.append("info", JSON.stringify(body)); // backend: info: str = Form(...), then json.loads
+  formData.append("info", JSON.stringify(body)); // backend: info: str = Form(...), validated as JSON
   // No Content-Type header: the browser sets the multipart boundary itself.
-  let data = await getJson(UPLOAD_URL + auth.query, { method: "POST", headers: auth.headers, body: formData });
+  let data = await getJson(UPLOAD_URL, { method: "POST", headers: authHeaders(token), body: formData });
 
   const taskId = data && (data.task_id || data.id);
   if (!taskId) return data;
@@ -224,8 +223,9 @@ async function predict(body, token) {
   const deadline = Date.now() + TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sleep(POLL_MS);
-    data = await getJson(STATUS_URL(encodeURIComponent(taskId)) + auth.query, { headers: auth.headers });
+    data = await getJson(STATUS_URL(encodeURIComponent(taskId)), { headers: authHeaders(token) });
     const state = String(data.status || data.state || "").toUpperCase();
+    if (onState) onState(state);
     if (state === "SUCCESS" || state === "COMPLETED" || state === "DONE") return data.result || data;
     if (state === "FAILURE" || state === "FAILED" || state === "ERROR") {
       throw new Error(data.error || "The prediction job failed.");
@@ -234,17 +234,16 @@ async function predict(body, token) {
   throw new Error("Timed out waiting for the prediction. Is the Celery worker running?");
 }
 
-// Expects the report from src/services/predict.py:
-//   { predicted_label, class_probabilities: {won, lost, open}, top_probability, second_best_label, probability_margin }
+// Expects the result of the Celery chain (src/services/predict.py + src/core/celery_app.py):
+//   { predicted_label, class_probabilities: {won, lost, open}, second_best_label, probability_margin,
+//     report: "text" | null, report_error?: "..." }
 function render(r) {
-  const status = String(r.predicted_label || r.predicted_status || r.prediction || "").toLowerCase();
-  const probs = r.class_probabilities || r.probabilities || {};
+  const status = String(r.predicted_label || "").toLowerCase();
+  const probs = r.class_probabilities || {};
 
-  // Backend not finished yet: /upload currently returns the validated input instead of a prediction
   if (!status) {
     resultEl.innerHTML =
-      `<div><strong>The backend accepted the input</strong> but did not return a prediction yet.</div>` +
-      `<p class="note">Once /upload sends the input to Celery (or returns predict_sales output), the prediction will appear here. Response received:</p>` +
+      `<div><strong>Unexpected response from the server.</strong></div>` +
       `<pre>${escapeHtml(JSON.stringify(r, null, 2))}</pre>`;
     resultEl.hidden = false;
     return;
@@ -256,10 +255,14 @@ function render(r) {
   }).join("");
   const margin = typeof r.probability_margin === "number" && r.second_best_label
     ? `<p class="note">${Math.round(r.probability_margin * 1000) / 10} points ahead of “${escapeHtml(r.second_best_label)}”.</p>` : "";
+  const report = r.report
+    ? `<div class="report"><h2>Sales report</h2>${escapeHtml(r.report)}</div>`
+    : `<p class="note">${escapeHtml(r.report_error || "No sales report was generated.")}</p>`;
   resultEl.innerHTML =
     `<div>Predicted status</div><div class="badge ${LABELS.includes(status) ? status : ""}">${escapeHtml(status)}</div>` +
     rows + margin +
-    `<p class="note">This is a statistical estimate from past deals, not a guarantee. Use it to prioritise, not to decide.</p>`;
+    `<p class="note">This is a statistical estimate from past deals, not a guarantee. Use it to prioritise, not to decide.</p>` +
+    report;
   resultEl.hidden = false;
 }
 
@@ -282,7 +285,10 @@ form.addEventListener("submit", async (e) => {
   if (!form.reportValidity()) return;
   submitBtn.disabled = true; submitBtn.textContent = "Predicting…";
   try {
-    render(await predict(readForm(), tokenEl.value.trim()));
+    const onState = (state) => {
+      submitBtn.textContent = state === "STARTED" ? "Working… (prediction + report)" : "Waiting in queue…";
+    };
+    render(await predict(readForm(), tokenEl.value.trim(), onState));
   } catch (err) {
     const network = err instanceof TypeError;
     showError(network

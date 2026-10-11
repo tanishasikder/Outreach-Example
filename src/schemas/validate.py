@@ -1,16 +1,10 @@
 '''
-Validates the dict the user will send. Lists the 
-required values and acceptable inputs. Validates
-each category and the input overall
-'''
-
-'''
 Validates the dict the user will send. Lists the
 required values and acceptable inputs. Validates
 each category and the input overall.
 
 These fields must match the model's training columns exactly
-(every column in deals.csv + accounts.csv except the DROP list in predict_deal_status.py).
+(every column in deals.csv + accounts.csv except the DROP list in src/models/deal_pred.py).
 '''
 
 from enum import Enum

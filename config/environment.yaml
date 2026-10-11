@@ -2,10 +2,9 @@ name: outreach-example
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python=3.13  # same as .venv and the Dockerfile
   - pip
   - pip:
-    - fastapi==0.110.0
-    - uvicorn[standard]==0.27.0
-    - mlflow==2.11.0
-    - dagshub==0.3.25
+    - -r ../requirements.txt  # app dependencies, pinned in one place
+    - mlflow    # experiment tracking (old pins 2.11 / 0.3.25 don't support Python 3.13)
+    - dagshub
