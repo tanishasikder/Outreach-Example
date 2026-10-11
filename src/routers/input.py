@@ -22,6 +22,11 @@ async def upload(
         payload: dict = Depends(verify_jwt),
         info: str = Form(...)
     ):
+    '''
+    Endpoint for user input. Inputs for company data to
+    see if the company will buy, reject, or be idle.
+    Verified by Pydantic in schemas/validate
+    '''
     try:
        # Verify the user first
         user_id = payload['sub']
@@ -33,10 +38,9 @@ async def upload(
             )
         info = json.loads(info)
         validated = UploadVerify.model_validate(info)
-
+        return validated
     except (json.JSONDecodeError, ValidationError):
         raise HTTPException(
             status_code=422,
             detail="Invalid upload metadata"
         )
-        

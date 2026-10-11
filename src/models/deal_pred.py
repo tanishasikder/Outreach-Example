@@ -1,6 +1,6 @@
 """Predict whether a deal is won, lost or open, using the raw CSV columns as they are.
 
-    python predict_deal_status.py                  # reads ./fake_sales_data/
+    python predict_deal_status.py                  # reads ./data/
     python predict_deal_status.py --data my_csvs   # folder with deals.csv and accounts.csv
 
 Needs scikit-learn 1.3 or newer (the decision tree handles blank values itself, so nothing is filled in).
@@ -12,6 +12,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier, export_text
+import joblib
 
 # Columns we do NOT feed to the model:
 DROP = [
@@ -37,21 +38,24 @@ smote = SMOTE(random_state=42)
 # 80% to learn from, 20% held back to test on. stratify keeps the won/lost/open mix the same in both.
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
 
-X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+#X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
 
-model = DecisionTreeClassifier(max_depth=2, max_features='sqrt',  random_state=42).fit(X_train_smote, y_train_smote)
+model = DecisionTreeClassifier(max_depth=2, max_features='sqrt',  random_state=42).fit(X_train, y_train)
 pred = model.predict(X_test)
 
 baseline = (y_test == y_train.mode()[0]).mean()        # accuracy of always guessing the most common status
 print(f"train: {len(X_train)} deals   test: {len(X_test)} deals "
-      f"(open deals in test: {(y_test == 'open').sum()})")
+    f"(open deals in test: {(y_test == 'open').sum()})")
 print(f"\ntest accuracy: {accuracy_score(y_test, pred):.3f}   (always guessing '{y_train.mode()[0]}' gets {baseline:.3f})")
 
 labels = sorted(y.unique())
 print("\nconfusion matrix (rows = what really happened, columns = what the model said):")
 print(pd.DataFrame(confusion_matrix(y_test, pred, labels=labels),
-                   index=[f"real {c}" for c in labels], columns=[f"said {c}" for c in labels]))
+                index=[f"real {c}" for c in labels], columns=[f"said {c}" for c in labels]))
 print("\n" + classification_report(y_test, pred, digits=2, zero_division=0))
 
 print("the model's rules:")
 print(export_text(model, feature_names=list(X.columns)))
+joblib.dump(model, 'src/models/sales_pred_model.joblib')
+# The API must build its input with exactly these columns, in this order (see the get_dummies/reindex step).
+joblib.dump(list(X.columns), 'src/models/model_columns.joblib')

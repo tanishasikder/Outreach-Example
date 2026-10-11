@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deal Status Predictor</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1c2430; --muted: #5d6877; --line: #d9dee5;
+    --accent: #2457d6; --won: #167a4a; --lost: #b3321f; --open: #8a6100;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14181f; --card: #1d232d; --text: #e8ecf2; --muted: #9aa5b5; --line: #323b49;
+            --accent: #7da2ff; --won: #4fd08f; --lost: #ff8a78; --open: #f0c050; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  form, .result { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 20px; }
+  legend { font-weight: 600; padding: 0; margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: .9rem; font-weight: 500; }
+  label small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  input, select { width: 100%; margin-top: 4px; padding: 9px 10px; font: inherit; color: var(--text);
+                  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { font: inherit; font-weight: 600; padding: 10px 18px; border-radius: 8px; border: 0; cursor: pointer;
+           background: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { button { color: #0d1117; } }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); margin-left: 8px; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .result { margin-top: 20px; }
+  .result[hidden] { display: none; }
+  .badge { display: inline-block; font-size: 1.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
+  .badge.won { color: var(--won); } .badge.lost { color: var(--lost); } .badge.open { color: var(--open); }
+  .bar { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 10px; margin-top: 8px; font-size: .9rem; }
+  .track { height: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .fill { height: 100%; background: var(--accent); }
+  .note { color: var(--muted); font-size: .85rem; margin-top: 14px; }
+  .error { color: var(--lost); font-weight: 500; }
+  .api { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .85rem; margin: -12px 0 20px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .dot.ok { background: var(--won); } .dot.down { background: var(--lost); }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--line);
+        border-radius: 8px; padding: 10px; font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Deal Status Predictor</h1>
+  <p class="sub">Enter the deal and company details. The model predicts whether the deal will be won, lost or open.</p>
+  <p class="api"><span id="api-dot" class="dot"></span><span id="api-text">Checking API…</span></p>
+
+  <form id="form" novalidate>
+    <fieldset>
+      <legend>Access</legend>
+      <label>Access token (JWT) *
+        <small>Kept in this browser tab only and sent with each request.</small>
+        <input name="token" id="token" type="password" autocomplete="off" required>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Deal</legend>
+      <div class="grid">
+        <label>Deal amount (USD) *
+          <input name="amount" type="number" min="0" step="any" required>
+        </label>
+        <label>Lead source *
+          <select name="lead_source" required>
+            <option value="">Select…</option>
+            <option value="inbound">Inbound (they contacted us)</option>
+            <option value="outbound">Outbound (we contacted them)</option>
+            <option value="referral">Referral</option>
+            <option value="event">Event</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Company</legend>
+      <div class="grid">
+        <label>Industry *
+          <select name="industry" required>
+            <option value="">Select…</option>
+            <option>software</option><option>fintech</option><option>healthcare</option>
+            <option>retail</option><option>manufacturing</option><option>logistics</option>
+            <option>education</option><option>energy</option><option>media</option>
+          </select>
+        </label>
+        <label>Region *
+          <select name="region" required>
+            <option value="">Select…</option>
+            <option value="north_america">North America</option>
+            <option value="europe">Europe</option>
+            <option value="apac">APAC</option>
+            <option value="latam">LATAM</option>
+          </select>
+        </label>
+        <label>Funding stage *
+          <select name="funding_stage" required>
+            <option value="">Select…</option>
+            <option value="bootstrapped">Bootstrapped</option>
+            <option value="seed">Seed</option>
+            <option value="series_a">Series A</option>
+            <option value="series_b">Series B</option>
+            <option value="series_c_plus">Series C+</option>
+            <option value="public">Public</option>
+          </select>
+        </label>
+        <label>Employees *
+          <input name="employee_count" type="number" min="1" step="1" required>
+        </label>
+        <label>Annual revenue (USD millions)
+          <small>Optional. Leave blank if unknown.</small>
+          <input name="annual_revenue_musd" type="number" min="0" step="any">
+        </label>
+        <label>Year founded *
+          <input name="founded_year" type="number" min="1985" max="2026" step="1" required>
+        </label>
+        <label>Growth, year over year (%)
+          <small>Optional. 12.9 means 12.9%. Between -100 and 200.</small>
+          <input name="growth_pct" type="number" min="-100" max="200" step="any">
+        </label>
+        <label>Hiring velocity
+          <small>Optional. 0 to 1, higher = hiring faster.</small>
+          <input name="hiring_velocity" type="number" min="0" max="1" step="any">
+        </label>
+        <label>Tech stack score *
+          <small>0 to 1, higher = more modern.</small>
+          <input name="tech_stack_score" type="number" min="0" max="1" step="any" required>
+        </label>
+      </div>
+    </fieldset>
+
+    <button id="submit" type="submit">Predict status</button>
+    <button id="reset" class="secondary" type="reset">Clear</button>
+    <p id="error" class="error" role="alert" hidden></p>
+  </form>
+
+  <section id="result" class="result" aria-live="polite" hidden></section>
+</main>
+
+<script>
+// ---- Backend settings (match src/routers/input.py) --------------------------
+// Serve this page at http://localhost:5500 (the origin allowed by CORS in src/main.py):
+//   cd frontend && python -m http.server 5500
+const API_BASE   = "http://localhost:8000";
+const HEALTH_URL = `${API_BASE}/health`;
+const UPLOAD_URL = `${API_BASE}/upload`;              // POST multipart form, field "info" = JSON string
+const STATUS_URL = (id) => `${API_BASE}/status/${id}`; // GET, used once /upload returns a Celery task_id
+const POLL_MS = 1000, TIMEOUT_MS = 60000;
+const LABELS = ["won", "lost", "open"];
+// -----------------------------------------------------------------------------
+
+const form = document.getElementById("form");
+const submitBtn = document.getElementById("submit");
+const errorEl = document.getElementById("error");
+const resultEl = document.getElementById("result");
+const tokenEl = document.getElementById("token");
+
+const NUMBER_FIELDS = ["amount", "employee_count", "annual_revenue_musd", "founded_year",
+                       "hiring_velocity", "tech_stack_score"];
+
+// Remember the token for this tab only (cleared when the tab closes)
+try { tokenEl.value = sessionStorage.getItem("jwt") || ""; } catch (_) {}
+tokenEl.addEventListener("change", () => { try { sessionStorage.setItem("jwt", tokenEl.value.trim()); } catch (_) {} });
+
+// Builds the dict that UploadVerify (src/schemas/validate.py) checks
+function readForm() {
+  const f = new FormData(form), body = {};
+  for (const [k, v] of f.entries()) body[k] = typeof v === "string" ? v.trim() : v;
+  delete body.token;
+  // Growth is typed as a percent but the API expects a fraction (12.9% -> 0.129).
+  body.growth_rate_yoy = body.growth_pct === "" ? null : Number(body.growth_pct) / 100;
+  delete body.growth_pct;
+  for (const k of NUMBER_FIELDS) body[k] = body[k] === "" ? null : Number(body[k]);
+  return body;
+}
+
+function showError(msg) { errorEl.textContent = msg; errorEl.hidden = !msg; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function getJson(url, options) {
+  const res = await fetch(url, options);
+  let data = null;
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error("Not authorised. Check the access token.");
+    if (res.status === 429) throw new Error("Too many requests (limit is 3 per minute). Wait a moment and try again.");
+    const detail = data && (data.detail || data.error);
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((d) => `${(d.loc || []).slice(1).join(".")}: ${d.msg}`).join("; "));
+    }
+    throw new Error(typeof detail === "string" ? detail : `Server returned ${res.status}`);
+  }
+  return data;
+}
+
+// verify_jwt(token: str) is used as a dependency, so FastAPI currently reads the token from
+// the ?token= query string. It is also sent as a Bearer header for when the backend switches to that.
+function authParts(token) {
+  return { query: `?token=${encodeURIComponent(token)}`, headers: { Authorization: `Bearer ${token}` } };
+}
+
+// POST /upload. Handles both a direct answer and a Celery task_id that has to be polled.
+async function predict(body, token) {
+  const auth = authParts(token);
+  const formData = new FormData();
+  formData.append("info", JSON.stringify(body)); // backend: info: str = Form(...), then json.loads
+  // No Content-Type header: the browser sets the multipart boundary itself.
+  let data = await getJson(UPLOAD_URL + auth.query, { method: "POST", headers: auth.headers, body: formData });
+
+  const taskId = data && (data.task_id || data.id);
+  if (!taskId) return data;
+
+  const deadline = Date.now() + TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await sleep(POLL_MS);
+    data = await getJson(STATUS_URL(encodeURIComponent(taskId)) + auth.query, { headers: auth.headers });
+    const state = String(data.status || data.state || "").toUpperCase();
+    if (state === "SUCCESS" || state === "COMPLETED" || state === "DONE") return data.result || data;
+    if (state === "FAILURE" || state === "FAILED" || state === "ERROR") {
+      throw new Error(data.error || "The prediction job failed.");
+    }
+  }
+  throw new Error("Timed out waiting for the prediction. Is the Celery worker running?");
+}
+
+// Expects the report from src/services/predict.py:
+//   { predicted_label, class_probabilities: {won, lost, open}, top_probability, second_best_label, probability_margin }
+function render(r) {
+  const status = String(r.predicted_label || r.predicted_status || r.prediction || "").toLowerCase();
+  const probs = r.class_probabilities || r.probabilities || {};
+
+  // Backend not finished yet: /upload currently returns the validated input instead of a prediction
+  if (!status) {
+    resultEl.innerHTML =
+      `<div><strong>The backend accepted the input</strong> but did not return a prediction yet.</div>` +
+      `<p class="note">Once /upload sends the input to Celery (or returns predict_sales output), the prediction will appear here. Response received:</p>` +
+      `<pre>${escapeHtml(JSON.stringify(r, null, 2))}</pre>`;
+    resultEl.hidden = false;
+    return;
+  }
+
+  const rows = LABELS.filter((k) => k in probs).map((k) => {
+    const pct = Math.round(probs[k] * 1000) / 10;
+    return `<div class="bar"><span>${k}</span><div class="track"><div class="fill" style="width:${pct}%"></div></div><span>${pct}%</span></div>`;
+  }).join("");
+  const margin = typeof r.probability_margin === "number" && r.second_best_label
+    ? `<p class="note">${Math.round(r.probability_margin * 1000) / 10} points ahead of “${escapeHtml(r.second_best_label)}”.</p>` : "";
+  resultEl.innerHTML =
+    `<div>Predicted status</div><div class="badge ${LABELS.includes(status) ? status : ""}">${escapeHtml(status)}</div>` +
+    rows + margin +
+    `<p class="note">This is a statistical estimate from past deals, not a guarantee. Use it to prioritise, not to decide.</p>`;
+  resultEl.hidden = false;
+}
+
+async function checkApi() {
+  const dot = document.getElementById("api-dot"), text = document.getElementById("api-text");
+  try {
+    const data = await getJson(HEALTH_URL);
+    const ok = data && data.status === "OK";
+    dot.className = `dot ${ok ? "ok" : "down"}`;
+    text.textContent = ok ? `API connected (${API_BASE})` : "API responded but is not healthy";
+  } catch (_) {
+    dot.className = "dot down";
+    text.textContent = `API not reachable at ${API_BASE}. Is uvicorn running?`;
+  }
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  showError(""); resultEl.hidden = true;
+  if (!form.reportValidity()) return;
+  submitBtn.disabled = true; submitBtn.textContent = "Predicting…";
+  try {
+    render(await predict(readForm(), tokenEl.value.trim()));
+  } catch (err) {
+    const network = err instanceof TypeError;
+    showError(network
+      ? `Could not reach the server. Check that the API is running and that this page is opened from ${location.protocol === "file:" ? "http://localhost:5500, not as a file" : "an origin allowed by CORS (http://localhost:5500)"}.`
+      : err.message);
+  } finally {
+    submitBtn.disabled = false; submitBtn.textContent = "Predict status";
+  }
+});
+// Clear the form fields but keep the token
+form.addEventListener("reset", () => {
+  const token = tokenEl.value;
+  showError(""); resultEl.hidden = true;
+  setTimeout(() => { tokenEl.value = token; });
+});
+
+checkApi();
+</script>
+</body>
+</html>
