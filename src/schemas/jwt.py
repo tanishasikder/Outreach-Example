@@ -12,10 +12,10 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from dotenv import load_dotenv
+from src.core.config import load_env
 import os
 
-load_dotenv()
+load_env()
 
 SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
 ALGORITHM = 'HS256'

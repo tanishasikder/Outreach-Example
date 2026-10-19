@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
+from src.core.config import load_env
 from langchain.chat_models import init_chat_model
 
-load_dotenv()
+load_env()
 
 # Embeddings are made by Qdrant Cloud Inference (see src/models/vector.py),
 # so the only model the app loads itself is the LLM that writes the report

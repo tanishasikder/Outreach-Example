@@ -10,7 +10,16 @@ from urllib.parse import urlsplit, urlunsplit
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+def load_env():
+    # .env is for local dev. In Docker the same settings arrive as environment
+    # variables, and the file may exist but be unreadable (e.g. Airflow runs as a
+    # different user than the file's owner), so skip it instead of crashing
+    try:
+        load_dotenv()
+    except PermissionError:
+        pass
+
+load_env()
 
 # Paths are relative to the project root, so it works from any working directory
 BASE_DIR = Path(__file__).resolve().parents[2]

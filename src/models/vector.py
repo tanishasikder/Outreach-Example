@@ -8,13 +8,13 @@ model runs locally. Run from the project root (rebuilds the collection):
 from pathlib import Path
 import os
 
-from dotenv import load_dotenv
+from src.core.config import load_env
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Document
 
-load_dotenv()
+load_env()
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
