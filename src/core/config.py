@@ -18,6 +18,18 @@ DB_PATH = BASE_DIR / 'data' / 'data.duckdb'
 MODEL_PATH = BASE_DIR / 'src' / 'models' / 'sales_pred_model.joblib'
 COLUMNS_PATH = BASE_DIR / 'src' / 'models' / 'model_columns.joblib'
 
+# Files shared between the pipeline (Airflow) and the app: trained models and data snapshots.
+# On AWS this is the S3 bucket. Without S3_BUCKET (local dev) it is the artifacts/ folder
+S3_BUCKET = os.getenv('S3_BUCKET', '')
+AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
+LOCAL_ARTIFACTS_DIR = BASE_DIR / 'artifacts'
+
+# dbt's warehouse. Separate from DB_PATH so the pipeline never fights the API for the DuckDB lock
+WAREHOUSE_PATH = Path(os.getenv('DUCKDB_PATH', BASE_DIR / 'data' / 'warehouse.duckdb'))
+
+# How often the worker checks for a newly promoted model
+MODEL_REFRESH_SECONDS = int(os.getenv('MODEL_REFRESH_SECONDS', '300'))
+
 # Pages allowed to call the API from a browser (comma separated in .env)
 CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:5500,http://127.0.0.1:5500').split(',')
 

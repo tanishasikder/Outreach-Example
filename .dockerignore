@@ -16,3 +16,8 @@ notebooks/
 frontend/
 config/
 .vscode/
+artifacts/
+infra/
+dbt/target/
+dbt/logs/
+data/warehouse.duckdb*

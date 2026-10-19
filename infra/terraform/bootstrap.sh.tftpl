@@ -1,0 +1,29 @@
+#!/bin/bash
+# Runs once, as root, the first time the server boots (EC2 user data).
+# Log: /var/log/cloud-init-output.log
+set -euxo pipefail
+
+# Region for the scripts in deploy/
+echo "AWS_REGION=${region}" > /etc/outreach.env
+
+# Docker (Amazon Linux has the engine; Compose and Buildx are plugins from GitHub)
+dnf install -y docker git
+systemctl enable --now docker
+usermod -aG docker ec2-user
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+curl -fsSL https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-buildx
+chmod +x /usr/local/lib/docker/cli-plugins/*
+
+# 4 GB swap: a safety net for memory spikes (image builds, model training)
+fallocate -l 4G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+# The code. deploy/deploy.sh pulls updates and starts everything
+git clone --branch ${branch} ${repo_url} /opt/outreach
+chown -R ec2-user:ec2-user /opt/outreach

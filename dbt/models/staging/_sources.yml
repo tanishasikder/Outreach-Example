@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Raw CSV exports, read as text so a bad value can't break the load.
+      With S3_BUCKET set they come from s3://<bucket>/raw/, otherwise from data/.
+    config:
+      meta:
+        # dbt-duckdb fills {name} with the table name below
+        external_location: "read_csv('{{ ('s3://' ~ env_var('S3_BUCKET') ~ '/raw') if env_var('S3_BUCKET', '') else env_var('RAW_DATA_PATH', 'data') }}/{name}.csv', header = true, all_varchar = true)"
+    tables:
+      - name: accounts
+      - name: deals
+      - name: events

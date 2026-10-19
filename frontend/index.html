@@ -151,9 +151,10 @@
 
 <script>
 // ---- Backend settings (match src/routers/input.py) --------------------------
-// Serve this page at http://localhost:5500 (the origin allowed by CORS in src/main.py):
+// Local dev: serve this page at http://localhost:5500 (the origin allowed by CORS in src/main.py):
 //   cd frontend && python -m http.server 5500
-const API_BASE   = "http://localhost:8000";
+// On AWS, Caddy serves this page and forwards /api/* to FastAPI (deploy/Caddyfile).
+const API_BASE   = location.port === "5500" ? "http://localhost:8000" : "/api";
 const HEALTH_URL = `${API_BASE}/health`;
 const UPLOAD_URL = `${API_BASE}/upload`;              // POST multipart form, field "info" = JSON string
 const STATUS_URL = (id) => `${API_BASE}/status/${id}`; // GET, used once /upload returns a Celery task_id

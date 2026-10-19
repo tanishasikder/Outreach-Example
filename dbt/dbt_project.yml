@@ -1,0 +1,34 @@
+# Cleans the raw CSVs and builds the table the model trains on.
+# Run from the project root:
+#   dbt build --project-dir dbt --profiles-dir dbt
+# "build" runs every model and every test in order. If a test fails,
+# the models after it are skipped, so bad data never reaches training.
+name: outreach
+version: '1.0.0'
+profile: outreach
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Allowed values. Must match the enums in src/schemas/validate.py
+  # (src/pipeline/train.py checks that they do before training)
+  industries: [logistics, healthcare, education, manufacturing, software, media, retail, fintech, energy]
+  regions: [europe, north_america, latam, apac]
+  funding_stages: [series_c_plus, series_b, seed, bootstrapped, public, series_a]
+  lead_sources: [outbound, inbound, event, referral]
+  statuses: [won, lost, open]
+  event_types: [site_visit, pricing_page_view, email_open, email_click, webinar_attend, demo_request]
+  # Stop the pipeline if cleaning removes more than this share of any table
+  max_row_loss: 0.05
+  # Stop the pipeline if there are fewer closed deals than this to train on
+  min_training_rows: 500
+
+models:
+  outreach:
+    staging:
+      +materialized: table # Raw files are read once per run, not once per test
+    marts:
+      +materialized: table

@@ -1,0 +1,22 @@
+# Where dbt builds the tables. Pick a target with DBT_TARGET (default: local).
+#   local: raw CSVs from data/, warehouse in data/warehouse.duckdb
+#   aws:   raw CSVs from s3://<S3_BUCKET>/raw/, read with the EC2 instance's IAM role (no keys)
+outreach:
+  target: "{{ env_var('DBT_TARGET', 'local') }}"
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}"
+      threads: 4
+
+    aws:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}"
+      threads: 4
+      extensions:
+        - httpfs
+        - aws
+      secrets:
+        - type: s3
+          provider: credential_chain # Instance role on EC2, or your AWS CLI login on a laptop
+          region: "{{ env_var('AWS_REGION', 'us-east-1') }}"

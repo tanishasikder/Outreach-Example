@@ -1,0 +1,6 @@
+# Shell scripts and server config must keep Linux line endings, even when committed from Windows
+*.sh text eol=lf
+Caddyfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.tftpl text eol=lf

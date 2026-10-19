@@ -1,0 +1,69 @@
+name: outreach-app
+
+# The app on AWS: web (Caddy) -> api (FastAPI) -> redis -> worker (Celery).
+# deploy/deploy.sh starts this together with airflow/compose.yaml.
+#
+#   docker compose --env-file .env -f deploy/compose.yaml up -d --build
+#
+# Only Caddy is reachable from the internet (ports 80/443). It serves the frontend and
+# forwards /api/* to FastAPI, so the page and the API share one address (no CORS needed).
+# With SITE_ADDRESS set to a domain name, Caddy gets an HTTPS certificate by itself.
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: outreach-app
+  env_file: ../.env
+  environment:
+    REDIS_URL: redis://redis:6379 # Inside Docker, Redis is the "redis" service
+  depends_on:
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *app
+    # --proxy-headers: trust X-Forwarded-For from Caddy, so the rate limiter
+    # sees each visitor's IP instead of Caddy's IP for everyone
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    expose:
+      - "8000"
+
+  worker:
+    <<: *app
+    command: celery -A src.core.celery_app worker -Q queue_sales,queue_rag --concurrency=2 --loglevel=info
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    image: caddy:2.8.4-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80} # ":80" = plain HTTP on the server's IP; or e.g. "deals.example.com"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../frontend:/srv:ro
+      - caddy_data:/data # HTTPS certificates
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:

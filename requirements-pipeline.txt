@@ -1,0 +1,5 @@
+# Extra packages for the data pipeline (Airflow tasks), on top of requirements.txt.
+# The Airflow image installs both into its own virtualenv: /opt/pipeline.
+# Locally: pip install -r requirements.txt -r requirements-pipeline.txt
+dbt-core==1.12.5
+dbt-duckdb==1.11.0

@@ -2,9 +2,12 @@
 Cleans the raw CSVs with SQL and writes the results into data/data.duckdb,
 replacing the accounts, deals and events tables.
 
-Always rebuilds from the CSVs in data/, so it is safe to run again
-(e.g. later as an Airflow task). Run from the project root:
+Always rebuilds from the CSVs in data/, so it is safe to run again.
+Run from the project root:
     python src/clean_data.py
+
+The automated pipeline uses the same rules in dbt/ instead (dbt/models/staging/).
+If you change a rule here, change it there too.
 
 Stop the FastAPI server first: DuckDB only allows one writer at a time.
 '''

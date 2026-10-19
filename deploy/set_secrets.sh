@@ -3,13 +3,13 @@
 # in AWS SSM Parameter Store (encrypted). The server reads them with its IAM role,
 # so no secret is ever copied to the server by hand or committed to git.
 #
-#   ./deploy/set_secrets.sh            # asks for each value
+#   bash deploy/set_secrets.sh          # asks for each value
 #
 # Re-run it any time to change a value, then run deploy.sh on the server.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1 # Stop Git Bash turning "/outreach/..." into a Windows path
 
-REGION=$(terraform -chdir=infra/terraform output -raw region)
+REGION=${AWS_REGION:-$(terraform -chdir=infra/terraform output -raw region)} # set AWS_REGION if you did not use Terraform
 
 put() { # name value
   aws ssm put-parameter --region "$REGION" --name "/outreach/$1" --value "$2" \

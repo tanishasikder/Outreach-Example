@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: deal_training
+    description: >
+      The training table for the sales model (src/pipeline/train.py).
+      Required form fields must never be empty here.
+    columns:
+      - name: deal_id
+        data_tests: [unique, not_null]
+      - name: status
+        data_tests: [not_null]
+      - name: amount
+        data_tests: [not_null]
+      - name: lead_source
+        data_tests: [not_null]
+      - name: industry
+        data_tests: [not_null]
+      - name: employee_count
+        data_tests: [not_null]
+      - name: region
+        data_tests: [not_null]
+      - name: funding_stage
+        data_tests: [not_null]
+      - name: tech_stack_score
+        data_tests: [not_null]
+      - name: founded_year
+        data_tests: [not_null]

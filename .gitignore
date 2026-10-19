@@ -1,3 +1,14 @@
 .env
 __pycache__/
 *.py[cod]
+
+# Pipeline outputs (local runs)
+artifacts/
+data/warehouse.duckdb*
+dbt/target/
+dbt/logs/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/terraform.tfvars

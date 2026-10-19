@@ -6,10 +6,11 @@ The API sends each upload as a chain: process_input (prediction) -> process_rag 
 '''
 
 import logging
-import joblib
+import time
 from celery import Celery
 from celery.signals import worker_process_init
-from .config import Settings, MODEL_PATH, COLUMNS_PATH
+from .config import Settings, MODEL_REFRESH_SECONDS
+from . import model_registry
 from src.services.predict import predict_sales
 
 celery_app = Celery('outreachproject')
@@ -22,9 +23,29 @@ logger = logging.getLogger(__name__)
 _models = {}
 
 def get_sales_model():
-    if 'sales' not in _models:
-        _models['sales'] = (joblib.load(MODEL_PATH), joblib.load(COLUMNS_PATH))
-    return _models['sales']
+    '''
+    Returns (version, model, columns) for the live model. Every MODEL_REFRESH_SECONDS
+    it checks models/latest.json, so a model promoted by Airflow is picked up
+    without restarting the worker
+    '''
+    cached = _models.get('sales')
+    if cached and time.monotonic() - cached['checked'] < MODEL_REFRESH_SECONDS:
+        return cached['version'], cached['model'], cached['columns']
+    try:
+        info = model_registry.latest()
+        version = info['version'] if info else model_registry.BUNDLED
+        if not cached or cached['version'] != version:
+            model, columns = model_registry.load(version)
+            cached = {'version': version, 'model': model, 'columns': columns}
+            logger.info('Loaded sales model %s', version)
+    except Exception:
+        if not cached:
+            raise # Nothing to fall back to
+        # Storage is unreachable: keep answering with the model we already have
+        logger.exception('Could not check for a new model, keeping %s', cached['version'])
+    cached['checked'] = time.monotonic()
+    _models['sales'] = cached
+    return cached['version'], cached['model'], cached['columns']
 
 def get_rag_models():
     if 'rag' not in _models:
@@ -42,8 +63,8 @@ def load_model(**kwargs):
 
 @celery_app.task(name='predict-sales', queue='queue_sales')
 def process_input(inputs: dict) -> dict:
-    model, columns = get_sales_model()
-    return predict_sales(inputs, model, columns)
+    version, model, columns = get_sales_model()
+    return predict_sales(inputs, model, columns, version)
 
 @celery_app.task(name='rag-output', queue='queue_rag')
 def process_rag(report: dict) -> dict:

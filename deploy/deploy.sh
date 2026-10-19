@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run ON THE SERVER to deploy the latest code from GitHub:
-#   cd /opt/outreach && ./deploy/deploy.sh
+#   cd /opt/outreach && bash deploy/deploy.sh
 # Safe to run again: Docker only rebuilds and restarts what changed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -9,7 +9,7 @@ echo "== Pull latest code"
 git pull --ff-only
 
 echo "== Settings and secrets from SSM"
-./deploy/fetch_env.sh
+bash deploy/fetch_env.sh
 
 echo "== App: web, api, worker, redis"
 docker compose --env-file .env -f deploy/compose.yaml up -d --build --remove-orphans

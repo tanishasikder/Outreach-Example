@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: stg_accounts
+    description: One cleaned row per company.
+    columns:
+      - name: account_id
+        data_tests: [unique, not_null]
+      - name: industry
+        data_tests: [not_null]
+      - name: region
+        data_tests: [not_null]
+      - name: funding_stage
+        data_tests: [not_null]
+
+  - name: stg_deals
+    description: One cleaned row per deal.
+    columns:
+      - name: deal_id
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_accounts')
+                field: account_id
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [won, lost, open]
+
+  - name: stg_events
+    description: De-duplicated engagement events.
+    columns:
+      - name: account_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_accounts')
+                field: account_id
