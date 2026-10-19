@@ -50,9 +50,9 @@ def get_sales_model():
 def get_rag_models():
     if 'rag' not in _models:
         # Imported here so the API (which only queues tasks) doesn't load them
-        from src.models.rag_models import get_gem_model
+        from src.models.rag_models import get_llm
         from src.models.vector import get_client
-        _models['rag'] = (get_gem_model(), get_client())
+        _models['rag'] = (get_llm(), get_client())
     return _models['rag']
 
 @worker_process_init.connect
@@ -72,8 +72,8 @@ def process_rag(report: dict) -> dict:
     # still return the prediction so the user sees something useful
     try:
         from src.services.rag import make_output
-        gem_model, client = get_rag_models()
-        return {**report, 'report': make_output(report, gem_model, client)}
+        llm, client = get_rag_models()
+        return {**report, 'report': make_output(report, llm, client)}
     except Exception:
         logger.exception('RAG report failed')
         return {**report, 'report': None, 'report_error': 'The sales report could not be generated.'}

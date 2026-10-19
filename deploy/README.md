@@ -47,7 +47,7 @@ non-secret settings. It prints the URL, bucket name and commands used below
 bash deploy/set_secrets.sh
 ```
 
-Asks for your Gemini and Qdrant keys and generates the JWT and Airflow secrets.
+Asks for your Groq and Qdrant keys and generates the JWT and Airflow secrets.
 They're stored encrypted in SSM, never in git or Terraform.
 
 ## 4. Upload the raw data

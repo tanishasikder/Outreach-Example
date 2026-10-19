@@ -9,7 +9,7 @@ services:
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
-    env_file: ../.env      # JWT_SECRET_KEY, GOOGLE_API_KEY, QDRANT_URL, QDRANT_KEY
+    env_file: ../.env      # JWT_SECRET_KEY, GROQ_API_KEY, QDRANT_URL, QDRANT_KEY
     environment:
       REDIS_URL: redis://redis:6379  # overrides .env: inside Docker, Redis is the "redis" service
     depends_on:

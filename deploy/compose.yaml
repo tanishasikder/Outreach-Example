@@ -17,6 +17,8 @@ x-app: &app
   env_file: ../.env
   environment:
     REDIS_URL: redis://redis:6379 # Inside Docker, Redis is the "redis" service
+  volumes:
+    - ../artifacts:/app/artifacts:ro # Models promoted by Airflow when S3_BUCKET is empty
   depends_on:
     redis:
       condition: service_healthy

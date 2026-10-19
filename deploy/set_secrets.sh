@@ -27,7 +27,7 @@ ask() { # name description
 random() { python -c "import secrets; print(secrets.token_hex(32))"; }
 
 echo "API keys (input is hidden, press Enter to skip one you already set):"
-ask GOOGLE_API_KEY "Gemini key for the sales report"
+ask GROQ_API_KEY "Groq key for the sales report"
 ask QDRANT_URL "Qdrant Cloud cluster URL"
 ask QDRANT_KEY "Qdrant Cloud API key"
 

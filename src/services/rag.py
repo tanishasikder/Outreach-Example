@@ -19,7 +19,7 @@ def get_info(client: QdrantClient, report: dict, limit: int = 5) -> list[str]:
     )
     return [point.payload['text'] for point in results.points]
 
-def make_output(report: dict, gem_model, client: QdrantClient) -> str:
+def make_output(report: dict, llm, client: QdrantClient) -> str:
     '''Writes the sales report from the prediction and the retrieved tips'''
     tips = '\n\n---\n\n'.join(get_info(client, report))
     query_text = f"""
@@ -34,5 +34,5 @@ def make_output(report: dict, gem_model, client: QdrantClient) -> str:
         tips from the sales handbooks:
         {tips}
     """
-    response = gem_model.invoke(query_text)
+    response = llm.invoke(query_text)
     return str(response.text) # Plain str so Celery can store it as JSON
