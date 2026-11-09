@@ -124,7 +124,7 @@
           <input name="annual_revenue_musd" type="number" min="0" step="any">
         </label>
         <label>Year founded *
-          <input name="founded_year" type="number" min="1985" max="2026" step="1" required>
+          <input name="founded_year" type="number" min="1985" step="1" required>
         </label>
         <label>Growth, year over year (%)
           <small>Optional. 12.9 means 12.9%. Between -100 and 200.</small>
@@ -167,6 +167,9 @@ const submitBtn = document.getElementById("submit");
 const errorEl = document.getElementById("error");
 const resultEl = document.getElementById("result");
 const tokenEl = document.getElementById("token");
+
+// Latest allowed founding year is this year (the API checks the same thing)
+form.elements.founded_year.max = new Date().getFullYear();
 
 const NUMBER_FIELDS = ["amount", "employee_count", "annual_revenue_musd", "founded_year",
                        "hiring_velocity", "tech_stack_score"];
